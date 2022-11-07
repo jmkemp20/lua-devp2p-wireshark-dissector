@@ -1,13 +1,12 @@
-
 -- create a new dissector
 local NAME = "rlpx"
 local PORT = 30305
 local rlpx = Proto(NAME, "Ethereum RLPx Protocol")
 
 local fields = rlpx.fields
-fields.auth_size = ProtoField.uint16 (NAME .. ".auth_size", "Auth Size")
-fields.ack_size = ProtoField.uint16 (NAME .. ".ack_size", "Ack Size")
-fields.body = ProtoField.bytes (NAME .. ".body", "Data")
+fields.auth_size = ProtoField.uint16(NAME .. ".auth_size", "Auth Size")
+fields.ack_size = ProtoField.uint16(NAME .. ".ack_size", "Ack Size")
+fields.body = ProtoField.bytes(NAME .. ".body", "Data")
 
 local known_ports = { 30303, 30304, 30305, 30306, 30307, 30308 }
 
@@ -22,7 +21,7 @@ local function table_has_value(tab, val)
 end
 
 -- main dissect packet function
-function rlpx.dissector (tvb, pinfo, tree)
+function rlpx.dissector(tvb, pinfo, tree)
     local subtree = tree:add(rlpx, tvb())
     local offset = 0
 
@@ -46,12 +45,6 @@ function rlpx.dissector (tvb, pinfo, tree)
         subtree:add(fields.body, tvb(offset))
     end
 end
-
-
-
-
-
-
 
 -- register this dissector
 DissectorTable.get("tcp.port"):add(PORT, rlpx)
