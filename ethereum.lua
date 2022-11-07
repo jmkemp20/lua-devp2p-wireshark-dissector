@@ -1,20 +1,22 @@
 --
 -- @brief Ethereum devp2p Protocol dissector plugin
--- @author bcsec.org
--- @date 2018.06
+-- @author Joshua Kemp
+-- @date 2022.07
 -- @version 0.1
 --
 
 -- create a new dissector
 local NAME = "devp2p"
-local PORT = 30303
+local PORT = 30305
 local devp2p = Proto(NAME, "Ethereum devp2p Protocol")
 
 local types = {
     [1] = "PING",
     [2] = "PONG",
     [3] = "FindNode",
-    [4] = "Neighbors"
+    [4] = "Neighbors",
+    [5] = "ENRRequest",
+    [6] = "ENRResponse"
 }
 
 -- create fields of devp2p
@@ -23,6 +25,18 @@ fields.hash = ProtoField.bytes (NAME .. ".hash", "Hash")
 fields.sign = ProtoField.bytes (NAME .. ".sign", "Sign")
 fields.type = ProtoField.uint8 (NAME .. ".type", "Type", base.DEC, types)
 fields.payload = ProtoField.bytes (NAME .. ".payload", "Payload")
+
+-- create ping fields
+fields.ping_version = ProtoField.bytes (NAME .. ".payload.ping_version", "Version")
+fields.ping_from = ProtoField.bytes (NAME .. ".payload.ping_from", "From")
+fields.ping_from_ip = ProtoField.bytes (NAME .. ".payload.ping_from.ip", "IP")
+fields.ping_from_udp = ProtoField.bytes (NAME .. ".payload.ping_from.udp", "UDP Port")
+fields.ping_from_tcp = ProtoField.bytes (NAME .. ".payload.ping_from.tcp", "TCP Port")
+fields.ping_to = ProtoField.bytes (NAME .. ".payload.ping_to", "To")
+fields.ping_to_ip = ProtoField.bytes (NAME .. ".payload.ping_to.ip", "IP")
+fields.ping_to_port = ProtoField.bytes (NAME .. ".payload.ping_to.port", "Port")
+fields.ping_expiration = ProtoField.bytes (NAME .. ".payload.ping_expiration", "Expiration")
+fields.ping_enrseq = ProtoField.bytes (NAME .. ".payload.ping_enrseq", "ENR Seq")
 
 function rlp_decode(input)
     if (input == nil or input == '')
@@ -460,38 +474,75 @@ function devp2p.dissector (tvb, pinfo, tree)
     offset = offset + 1
 
     local payload = tvb(offset)
-    subtree:add(fields.payload, payload)
+    local payloadtree = subtree:add(fields.payload, payload)
 
     ---- 协议细节
-    local decodedvalue = rlp_decode(string.fromhex(tostring(payload:bytes())))
-    local payloadtree = tree:add(subtree, tvb())
-    message(decodedvalue)
+    local payloadhex = tostring(payload:bytes())
+    local decodedvalue = rlp_decode(string.fromhex(payloadhex))
+    -- local payloadtree = tree:add(subtree, payload)
+    -- message(decodedvalue)
+
+    -- For debugging purposes, set the payload tree to the decoded value
+    payloadtree:set_text("Payload Data: " .. decodedvalue)
 
     if types[ptype] == "PING" then
-        payloadtree:set_text(decodedvalue)
-        local version,fromip,fromudpport,fromtcpport,toip,toport,expiration = string.match(decodedvalue, '%[([^,]+), %[([^,]+), ([^,]+), ([^%]]+)%], %[([^,]+), ([^%]]+)%], ([^%]]+)%]')
-        message(version .. fromip .. fromudpport,fromtcpport,toip,toport,expiration)
-        payloadtree:add("Version:", string.remove_quoted(version))
-        payloadtree:add("From:", fromip, string.toport(string.remove_quoted(fromudpport)), string.toport(string.remove_quoted(fromtcpport)))
-        payloadtree:add("To:", string.toip(string.remove_quoted(toip)) .. ":" .. string.toport(string.remove_quoted(toport)))
-        payloadtree:add("Expiration:", string.remove_quoted(expiration))
-        payloadtree:set_text("PING " .. string.toip(string.remove_quoted(toip)) .. ":" .. string.toport(string.remove_quoted(toport)))
+        -- payloadtree:set_text(decodedvalue)
+        local version,fromip,fromudpport,fromtcpport,toip,toport,expiration,enrseq = string.match(decodedvalue, '%[([^,]+), %[([^,]+), ([^,]+), ([^%]]+)%], %[([^,]+), ([^%]]+)%], ([^%]]+)%, ([^%]]+)%]')
+        -- message(version .. fromip .. fromudpport,fromtcpport,toip,toport,expiration)
+        offset = offset + 1
+        payloadtree:add(fields.ping_version, tvb(offset, 1))
+        payloadtree:append_text(string.remove_quoted(version))
+        offset = offset + 1
+        local ping_fromtree = payloadtree:add(fields.ping_from, tvb(offset, 11))
+        --payloadtree:add("Version: " .. string.remove_quoted(version), tvb(offset, 6))
+        ping_fromtree:set_text("From: " .. string.toip(string.remove_quoted(fromip)) .. ":" .. string.toport(string.remove_quoted(fromudpport)))
+        offset = offset + 2
+        local ping_from_ip = ping_fromtree:add(fields.ping_from_ip, tvb(offset, 4))
+        ping_from_ip:set_text("IP: " .. string.toip(string.remove_quoted(fromip)))
+        offset = offset + 4 + 1
+        local ping_from_udp = ping_fromtree:add(fields.ping_from_udp, tvb(offset, 2))
+        ping_from_udp:set_text("UDP Port: " .. string.toport(string.remove_quoted(fromudpport)))
+        offset = offset + 2 + 1
+        local ping_from_tcp = ping_fromtree:add(fields.ping_from_tcp, tvb(offset, 2))
+        ping_from_tcp:set_text("TCP Port: " .. string.toport(string.remove_quoted(fromtcpport)))
+        --payloadtree:add(fields.ping_from)
+        --payloadtree:add("From:", string.toip(string.remove_quoted(fromip)) .. ":" .. string.toport(string.remove_quoted(fromudpport)))
+        offset = offset + 2
+        local ping_totree = payloadtree:add(fields.ping_to, tvb(offset, 10))
+        ping_totree:set_text("To: " .. string.toip(string.remove_quoted(toip)) .. ":" .. string.toport(string.remove_quoted(toport)))
+        offset = offset + 2
+        local ping_to_ip = ping_totree:add(fields.ping_to_ip, tvb(offset, 4))
+        ping_to_ip:set_text("IP: " .. string.toip(string.remove_quoted(toip)))
+        offset = offset + 4 + 1
+        local ping_to_port = ping_totree:add(fields.ping_to_port, tvb(offset, 2))
+        ping_to_port:set_text("Port: " .. string.toport(string.remove_quoted(toport)))
+        --payloadtree:add("To:", string.toip(string.remove_quoted(toip)) .. ":" .. string.toport(string.remove_quoted(toport)))
+        offset = offset + 2 + 2
+        local ping_exp = payloadtree:add(fields.ping_expiration, tvb(offset, 4))
+        ping_exp:set_text("Expiration: " .. os.date('%b %d, %Y %X', tonumber(string.remove_quoted(expiration),16)))
+        --payloadtree:add("Expiration:", os.date('%b %d, %Y %X', tonumber(string.remove_quoted(expiration),16)))
+        offset = offset + 4 + 1
+        local ping_enrseq = payloadtree:add(fields.ping_expiration, tvb(offset, 6))
+        ping_enrseq:set_text("ENR Sequence #: " .. string.remove_quoted(enrseq))
+        --payloadtree:add("ENR Sequence #:", string.remove_quoted(enrseq))
+        payloadtree:set_text("Payload Data: (PING)")
     elseif types[ptype] == "PONG" then
-        payloadtree:set_text(decodedvalue)
-        local toip,toudpport,totcpport,replyhash, expiration = string.match(decodedvalue, '%[%[([^,]+), ([^,]+), ([^%]]+)%], ([^,]+), ([^%]]+)%]')
-        payloadtree:add("To:", string.toip(string.remove_quoted(toip)), string.toport(string.remove_quoted(toudpport)), string.toport(string.remove_quoted(totcpport)))
+        -- payloadtree:set_text(decodedvalue)
+        local toip,toudpport,totcpport,replyhash,expiration,enrseq = string.match(decodedvalue, '%[%[([^,]+), ([^,]+), ([^%]]+)%], ([^,]+), ([^%]]+)%, ([^%]]+)%]')
+        payloadtree:add("To:", string.toip(string.remove_quoted(toip)) .. ":" .. string.toport(string.remove_quoted(toudpport)), string.toport(string.remove_quoted(totcpport)))
         payloadtree:add("Hash:", string.remove_quoted(replyhash))
-        payloadtree:add("Expiration:", string.remove_quoted(expiration))
-        payloadtree:set_text("PONG " .. string.toip(string.remove_quoted(toip)) .. ":" .. string.toport(string.remove_quoted(toudpport)) .. "/" ..  string.toport(string.remove_quoted(totcpport)))
+        payloadtree:add("Expiration:", os.date('%b %d, %Y %X', tonumber(string.remove_quoted(expiration),16)))
+        payloadtree:add("ENR Sequence #:", string.remove_quoted(enrseq))
+        payloadtree:set_text("Payload Data: (PONG)")
     elseif types[ptype] == "FindNode" then
-        payloadtree:set_text(decodedvalue)
-        local hash, expiration = string.match(decodedvalue, '%[([^,]+), ([^%]]+)%]')
-        payloadtree:set_text("FindNode")
-        payloadtree:add("Hash:", hash)
-        payloadtree:add("Expiration:", string.remove_quoted(expiration))
+        -- payloadtree:set_text(decodedvalue)
+        payloadtree:set_text("Payload Data: (FindNode)")
+        local target,expiration = string.match(decodedvalue, '%[([^,]+), ([^%]]+)%]')
+        payloadtree:add("Target:", target)
+        payloadtree:add("Expiration:", os.date('%b %d, %Y %X', tonumber(string.remove_quoted(expiration),16)))
     elseif types[ptype] == "Neighbors" then
-        payloadtree:set_text(decodedvalue)
-        message(decodedvalue)
+        -- payloadtree:set_text(decodedvalue)
+        -- message(decodedvalue)
         local tablev = json.decode(decodedvalue)
         local cnt = 0
         -- payloadtree:set_text("Neighbors")
@@ -503,14 +554,62 @@ function devp2p.dissector (tvb, pinfo, tree)
                         payloadtree:add(string.toip(jv[1])..":"..string.toport(jv[2]), string.toport(jv[3]), jv[4])
                         cnt = cnt + 1
                     else
-                        payloadtree:add("Expiration: "..string.remove_quoted(jv))
+                        payloadtree:add(jv)
                     end
                 end
             else
-                payloadtree:add(v)
+                payloadtree:add("Expiration:", os.date('%b %d, %Y %X', tonumber(v, 16)))
             end
         end
-        payloadtree:set_text("Neighbors (".. cnt ..")")
+        payloadtree:set_text("Payload Data: (Neighbors (".. cnt .."))")
+    elseif types[ptype] == "ENRRequest" then
+        local expiration = string.match(decodedvalue, '%[([^,]+)%]')
+        -- payloadtree:set_text(decodedvalue)
+        payloadtree:add("Expiration:", os.date('%b %d, %Y %X', tonumber(string.remove_quoted(expiration),16)))
+        payloadtree:set_text("Payload Data: (ENRRequest)")
+    elseif types[ptype] == "ENRResponse" then
+      payloadtree:set_text("Payload Data: (ENRResponse)")
+      local requesthash = string.match(decodedvalue, '%[([^,]+)')
+
+      payloadtree:add("Request Hash:", string.remove_quoted(requesthash))
+
+      local enr_table = json.decode(decodedvalue)[2]
+      local cnt = 0
+      local enrtree = payloadtree:add("ENR:")
+      -- The following three fields "always" exists
+      enrtree:add("Signature:", enr_table[1])
+      enrtree:add("Sequence Num:", enr_table[2])
+      for i,v in ipairs(enr_table) do
+        if type(v) == "table" then
+            -- for j,jv in ipairs(v) do
+            --     if type(jv) == "table" then
+            --         -- 这就是节点了
+            --         enrtree:add()
+            --         cnt = cnt + 1
+            --     else
+            --         enrtree:add(jv)
+            --     end
+            -- end
+        else
+          if (i % 2 ~= 0 and i > 2) then
+              local key = string.fromhex(v)
+              local output = key .. ": "
+              if (key == "id") then
+                  enrtree:add(output .. string.fromhex(enr_table[i + 1]))
+              elseif (key == "ip") then
+                 enrtree:add(output .. string.toip(enr_table[i + 1]))
+              elseif (key == "tcp" or key == "udp") then
+                  enrtree:add(output .. string.toport(enr_table[i + 1]))
+              elseif (key == "eth") then
+                  -- This is an "eth" ENR entry
+                  -- https://github.com/ethereum/devp2p/blob/master/enr-entries/eth.md
+                  enrtree:add(output .. enr_table[i + 1][1][1])
+              else
+                  enrtree:add(output .. tostring(enr_table[i + 1]))
+              end
+          end
+        end
+      end
     else
         payloadtree:set_text(decodedvalue)
     end
@@ -522,6 +621,9 @@ end
 
 -- register this dissector
 DissectorTable.get("udp.port"):add(PORT, devp2p)
+DissectorTable.get("udp.port"):add("30303", devp2p)
+DissectorTable.get("udp.port"):add("30308", devp2p)
+DissectorTable.get("udp.port"):add("30307", devp2p)
 
 
 
