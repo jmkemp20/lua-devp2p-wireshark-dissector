@@ -1,5 +1,10 @@
-python = require 'python'
+local python = require 'python'
 local g = python.globals()
+
+-- Temporary for development
+local sys = python.import 'sys'
+sys.path.append('../pydevp2p/')
+-- End of Temporary for development
 
 local crypto_secp256k1 = python.import 'pydevp2p.crypto.secp256k1'
 local discover_v4wire = python.import 'pydevp2p.discover.v4wire'
@@ -101,4 +106,8 @@ node1.addConnection("192.168.2.20", boot_pub_static_k)
 if show_prints then
     print("[after] 1 node1.peers: ", node1.peers)
     print("[after] 1 rlpx.all_nodes.get(node1.ipaddr).peers:", rlpx.all_nodes.get(node1.ipaddr).peers)
+end
+
+if rlpx.all_nodes.get(node1.ipaddr) == nil then
+    print("yes")
 end
