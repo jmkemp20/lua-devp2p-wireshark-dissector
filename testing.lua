@@ -72,19 +72,8 @@ if show_prints then
     print("dec_ack_msg:", dec_ack_msg)
 end
 
-local auth_init_msg = rlpx.parse_auth_type(dec_auth_msg)
-local auth_resp_msg = rlpx.parse_auth_type(dec_ack_msg)
-if show_prints then
-    if rlpx.is_auth_init_msg(auth_init_msg) then
-        print("Auth Message!")
-    end
-    if rlpx.is_auth_resp_msg(auth_resp_msg) then
-        print("Ack Message!")
-    end
-end
-
+-- Verify Python <-> Lua Dictionaries
 print("\nTesting Python <-> Lua Dictionaries")
-
 if show_prints then
     print("[before] 0 nodes:", rlpx.all_nodes)
 end
@@ -102,12 +91,8 @@ if show_prints then
     print("[before] 0 node1.peers:", node1.peers)
     print("[before] 0 rlpx.all_nodes.get(node1.ipaddr).peers:", rlpx.all_nodes.get(node1.ipaddr).peers)
 end
-node1.addConnection("192.168.2.20", boot_pub_static_k)
+node1.addConnection(boot_pub_static_k, false, "192.168.2.20")
 if show_prints then
     print("[after] 1 node1.peers: ", node1.peers)
     print("[after] 1 rlpx.all_nodes.get(node1.ipaddr).peers:", rlpx.all_nodes.get(node1.ipaddr).peers)
-end
-
-if rlpx.all_nodes.get(node1.ipaddr) == nil then
-    print("yes")
 end

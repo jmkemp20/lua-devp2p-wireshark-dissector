@@ -72,7 +72,7 @@ This is originally forked from the [bcsecorg](https://github.com/bcsecorg/ethere
 
 Currently, no other Wireshark Dissector provides dissecting encrypted traffic within a devp2p network, so this project's goal is to provide one, for developers, analysts and the community. In support of deciphering and decrypting devp2p network traffic, a python-based library [pydevp2p](https://github.com/jmkemp20/pydevp2p) was created to aid in node/peer management, decrypting, and RLP decoding.
 
-Because of the use of a python-based library, this tool also utilizes a LUA <-> Python 3.10 bridge known as Lunatic Python, [lunatic-python](https://github.com/bastibe/lunatic-python). This also needed to be forked, in order to work with LUA 4.3 and Python 3.10.
+Because of the use of a python-based library, this tool also utilizes a LUA <-> Python 3.10 bridge known as Lunatic Python, [lunatic-python](https://github.com/jmkemp20/lunatic-python). This also needed to be forked, in order to work with LUA 4.2 and Python 3.10.
 
 There also exists a C-based ethereum dissector that requires compiling and building Wireshark, [ConsenSys](https://github.com/ConsenSys/ethereum-dissectors), but with only discv4 dissection.
 
@@ -84,8 +84,7 @@ There also exists a C-based ethereum dissector that requires compiling and build
 
 ### Lunatic Python
 
-- [lunatic-python](https://github.com/bastibe/lunatic-python) - A two-way bridge between Python and Lua
-- Forked Version: TBD
+- [lunatic-python](https://github.com/jmkemp20/lunatic-python) - A two-way bridge between Python and Lua
 
 <!-- GETTING STARTED -->
 
@@ -95,39 +94,63 @@ To get a local copy up and running follow these simple steps.
 
 ### Prerequisites
 
-- Coming Soon!
+- NOTE - Wireshark uses a specifically built LUA runtime based off of LUA 5.2, therefore lunatic-python needs to be built towards that version
 
-<!--
-In order to get started some ubuntu deps "may" need to be installed, then clone the repo and install the pip package like normal
-
-- Ubuntu dependencies
+- LUA Dependencies
   ```sh
-  sudo apt-get install libssl-dev build-essential automake
+  sudo apt-get install lua5.2 liblua5.2-dev
   ```
--->
+- Build [lunatic-python](https://github.com/jmkemp20/lunatic-python) for LUA 5.2 - Click the link for more detailed build instructions
+  ```sh
+  cd lunatic-python
+  cmake -B./build -H. -DPYTHON_INCLUDE_DIR=/usr/include/python3.10 \
+    -DPYTHON_LIBRARY=/usr/lib/x86_64-linux-gnu/libpython3.10.so
+  cmake --build ./build
+  ```
+- Make sure [pydevp2p](https://github.com/jmkemp20/pydevp2p) is installed (use sudo if you will be running Wireshark with Root privileges)
+  ```sh
+  cd pydevp2p
+  pip install .
+  ```
 
 ### Installation
-
-- Coming Soon!
-<!--
 
 1. Clone the repo
    ```sh
    git clone https://github.com/jmkemp20/lua-devp2p-wireshark-dissector.git
+   cd lua-devp2p-wireshark-dissector
    ```
-2. Install pydevp2p via setup.py
+2. Copy over the python.so shared object library to global and/or local LUA includes folder
    ```sh
-   cd lua-devp2p-wireshark-dissector && pip install .
+   cp ~/lunatic-python/build/bin/python.so /usr/local/lib/lua/5.2/.
    ```
-   -->
+3. Run the testing.lua script to verify LUA <-> PYTHON bridge
+   ```sh
+   lua testing.lua
+   ```
+4. Create Wireshark Plugins folders that resemble below (if they don't exist)
+   ```sh
+   ~/.local/lib/wireshark/plugins/...     # For local user
+   /root/.local/lib/wireshark/plugins/... # For root user
+   ```
+5. Symlink the .lua dissectors from this repo to the Wireshark plugins folder
+   ```sh
+   cd ~/.local/lib/wireshark/plugins      # For local user
+   sudo ln -s {path-to-dissectors}/{dissector-name}.lua {dissector-name}.lua
+   cd /root/.local/lib/wireshark/plugins  # For root user
+   sudo ln -s {path-to-dissectors}/{dissector-name}.lua {dissector-name}.lua
+   ```
 
 <!-- USAGE EXAMPLES -->
 
 ## Usage
 
-Coming soon!
-
-_For more examples, please refer to the [Documentation](https://example.com)_
+1. Run Wireshark
+   ```sh
+   wireshark
+     OR
+   wireshark -r <pcapng-file>
+   ```
 
 <!-- ROADMAP -->
 
