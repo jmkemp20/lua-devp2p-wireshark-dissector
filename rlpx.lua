@@ -29,6 +29,24 @@ local function table_has_value(tab, val)
     return false
 end
 
+local function array_iterator(array, len)
+    local index = 0
+    local count = len
+
+    -- The closure function is returned
+
+    return function()
+        index = index + 1
+
+        if index <= count
+        then
+            -- return the current element of the iterator
+            return array[index]
+        end
+
+    end
+end
+
 -- main dissect packet function
 function rlpx.dissector(tvb, pinfo, tree)
     local subtree = tree:add(rlpx, tvb())
@@ -56,10 +74,9 @@ function rlpx.dissector(tvb, pinfo, tree)
             local dec_msg = rlpxBridge.handleRLPxHandshakeMsg(srcaddr, dstaddr, payload)
             local payloadtree = subtree:add(fields.body, tvb(offset))
             payloadtree:set_text("Handshake AUTH ACK")
-            payloadtree:add("Random Pub Key:", dec_msg.RandomPubkey)
-            payloadtree:add("Nonce:", dec_msg.Nonce)
-            payloadtree:add("Version:", dec_msg.Version)
-            payloadtree:add("RandomPrivKey:", dec_msg.RandomPrivKey)
+            for element in array_iterator(dec_msg, dec_msg[0]) do
+                payloadtree:add(element)
+            end
         elseif (table_has_value(known_ports, pinfo.dst_port)) then
             -- This is most likely a handshake AUTH packet
             offset = offset + 2
@@ -68,14 +85,18 @@ function rlpx.dissector(tvb, pinfo, tree)
             -- print(payload, dstNode)
             local dec_msg = rlpxBridge.handleRLPxHandshakeMsg(srcaddr, dstaddr, payload)
             local payloadtree = subtree:add(fields.body, tvb(offset))
-            payloadtree:set_text("Handshake AUTH INIT")
-            payloadtree:add("Signature:", dec_msg.Signature)
-            payloadtree:add("Initiator Pub Key:", dec_msg.InitatorPubkey)
-            payloadtree:add("Nonce:", dec_msg.Nonce)
-            payloadtree:add("Version:", dec_msg.Version)
-            payloadtree:add("RandomPrivKey:", dec_msg.RandomPrivKey)
+            for element in array_iterator(dec_msg, dec_msg[0]) do
+                payloadtree:add(element)
+            end
         else
             subtree:add(fields.body, tvb(offset))
+        end
+    else
+        local dec_msg = rlpxBridge.handleRLPxMsg(srcaddr, dstaddr, payload)
+        if dec_msg[0] > 0 then
+            for element in array_iterator(dec_msg, dec_msg[0]) do
+                subtree:add(element)
+            end
         end
     end
 end
