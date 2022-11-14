@@ -16,6 +16,8 @@ local fields = rlpx.fields
 fields.auth_size = ProtoField.uint16(NAME .. ".auth_size", "Auth Size")
 fields.ack_size = ProtoField.uint16(NAME .. ".ack_size", "Ack Size")
 fields.body = ProtoField.bytes(NAME .. ".body", "Data")
+fields.frame_header = ProtoField.bytes(NAME .. ".frame_header", "Frame Header")
+fields.frame_body = ProtoField.bytes(NAME .. ".frame_body", "Frame Body")
 
 local known_ports = { 30303, 30304, 30305, 30306, 30307, 30308 }
 
@@ -69,7 +71,7 @@ function rlpx.dissector(tvb, pinfo, tree)
             -- This is most likely a handshake AUTH-ACK packet
             offset = offset + 2
             subtree:add(fields.ack_size, auth_size)
-            pinfo.cols.info:set(pinfo.src_port .. " → " .. pinfo.dst_port .. " Handshake (AUTH ACK)")
+            pinfo.cols.info:set(pinfo.src_port .. " → " .. pinfo.dst_port .. " [HANDSHAKE] AUTH ACK")
             -- print(payload, dstNode)
             local dec_msg = rlpxBridge.handleRLPxHandshakeMsg(srcaddr, dstaddr, payload)
             local payloadtree = subtree:add(fields.body, tvb(offset))
@@ -81,7 +83,7 @@ function rlpx.dissector(tvb, pinfo, tree)
             -- This is most likely a handshake AUTH packet
             offset = offset + 2
             subtree:add(fields.auth_size, auth_size)
-            pinfo.cols.info:set(pinfo.src_port .. " → " .. pinfo.dst_port .. " Handshake (AUTH INIT)")
+            pinfo.cols.info:set(pinfo.src_port .. " → " .. pinfo.dst_port .. " [HANDSHAKE] AUTH INIT")
             -- print(payload, dstNode)
             local dec_msg = rlpxBridge.handleRLPxHandshakeMsg(srcaddr, dstaddr, payload)
             local payloadtree = subtree:add(fields.body, tvb(offset))
@@ -93,9 +95,28 @@ function rlpx.dissector(tvb, pinfo, tree)
         end
     else
         local dec_msg = rlpxBridge.handleRLPxMsg(srcaddr, dstaddr, payload)
-        if dec_msg[0] > 0 then
-            for element in array_iterator(dec_msg, dec_msg[0]) do
-                subtree:add(element)
+        local frame_header = dec_msg[0]
+        local frame_body = dec_msg[1]
+        local frame_type = dec_msg[2]
+        -- Set the column information to the Frame Type
+        if frame_type ~= nil then
+            pinfo.cols.info:set(pinfo.src_port .. " → " .. pinfo.dst_port .. " " .. frame_type)
+        end
+        -- Show the frame header information (if available) in Wireshark
+        if frame_header ~= nil then
+            local frame_header_tree = subtree:add(fields.frame_header, tvb(0, frame_header.headerSize))
+            frame_header_tree:add("Raw Decrypted Header:", frame_header.header)
+            frame_header_tree:add("MAC:", frame_header.mac)
+            frame_header_tree:add("Frame Size:", frame_header.frameSize)
+            frame_header_tree:add("Read Size:", frame_header.readSize)
+            frame_header_tree:add("Header Data:", frame_header.headerData)
+            pinfo.cols.info:append(" Len=" .. frame_header.readSize)
+        end
+        -- Show the frame body information (if available) in Wireshark
+        if frame_header ~= nil and frame_type ~= nil and frame_body ~= nil and frame_body[0] > 0 then
+            local frame_body_tree = subtree:add(fields.frame_body, tvb(frame_header.headerSize))
+            for element in array_iterator(frame_body, frame_body[0]) do
+                frame_body_tree:add(element)
             end
         end
     end
