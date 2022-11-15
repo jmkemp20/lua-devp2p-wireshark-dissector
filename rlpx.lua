@@ -5,7 +5,7 @@ local sys = python.import 'sys'
 sys.path.append('/home/jkemp/cs700/pydevp2p/')
 -- End of Temporary for development
 
-local rlpxBridge = python.import 'pydevp2p.rlpx.bridge'
+local rlpxBridge = python.import 'pydevp2p.bridge'
 
 -- create a new dissector
 local NAME = "rlpx"
@@ -22,7 +22,7 @@ fields.frame_body = ProtoField.bytes(NAME .. ".frame_body", "Frame Body")
 local known_ports = { 30303, 30304, 30305, 30306, 30307, 30308 }
 
 local function table_has_value(tab, val)
-    for index, value in ipairs(tab) do
+    for _, value in ipairs(tab) do
         if value == val then
             return true
         end
@@ -32,6 +32,7 @@ local function table_has_value(tab, val)
 end
 
 local function array_iterator(array, len)
+    -- This lets us iterate over a c object (like a python array)
     local index = 0
     local count = len
 
@@ -61,8 +62,6 @@ function rlpx.dissector(tvb, pinfo, tree)
     local dstaddr = tostring(pinfo.dst)
 
     local payload = tostring(tvb:bytes())
-
-    -- NEED A FULL PYTHON BRIDGE TO HANDLE EVERYTHING
 
     -- dissect field one by one, and add to protocol tree
     local auth_size = tvb(offset, 2)
