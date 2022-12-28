@@ -5,6 +5,15 @@
 -- @version 0.1
 --
 
+local python = require 'python'
+
+-- Temporary for development
+local sys = python.import 'sys'
+sys.path.append('/home/jkemp/cs700/pydevp2p/')
+-- End of Temporary for development
+
+local pydevp2p = python.import 'pydevp2p.bridge'
+
 -- create a new dissector
 local NAME = "devp2p"
 local PORT = 30305
@@ -621,5 +630,8 @@ end
 -- register this dissector
 DissectorTable.get("udp.port"):add(PORT, devp2p)
 DissectorTable.get("udp.port"):add("30303", devp2p)
-DissectorTable.get("udp.port"):add("30308", devp2p)
+DissectorTable.get("udp.port"):add("30304", devp2p)
+DissectorTable.get("udp.port"):add("30305", devp2p)
+DissectorTable.get("udp.port"):add("30306", devp2p)
 DissectorTable.get("udp.port"):add("30307", devp2p)
+DissectorTable.get("udp.port"):add("30308", devp2p)

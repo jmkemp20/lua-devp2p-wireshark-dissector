@@ -72,7 +72,7 @@ function rlpx.dissector(tvb, pinfo, tree)
             subtree:add(fields.ack_size, auth_size)
             pinfo.cols.info:set(pinfo.src_port .. " → " .. pinfo.dst_port .. " [HANDSHAKE] AUTH ACK")
             -- print(payload, dstNode)
-            local dec_msg = rlpxBridge.handleRLPxHandshakeMsg(srcaddr, dstaddr, payload)
+            local dec_msg = rlpxBridge.handleRLPxHandshakeMsg(srcaddr, dstaddr, payload, pinfo.visited, pinfo.number)
             local payloadtree = subtree:add(fields.body, tvb(offset))
             payloadtree:set_text("Handshake AUTH ACK")
             for element in array_iterator(dec_msg, dec_msg[0]) do
@@ -84,7 +84,7 @@ function rlpx.dissector(tvb, pinfo, tree)
             subtree:add(fields.auth_size, auth_size)
             pinfo.cols.info:set(pinfo.src_port .. " → " .. pinfo.dst_port .. " [HANDSHAKE] AUTH INIT")
             -- print(payload, dstNode)
-            local dec_msg = rlpxBridge.handleRLPxHandshakeMsg(srcaddr, dstaddr, payload)
+            local dec_msg = rlpxBridge.handleRLPxHandshakeMsg(srcaddr, dstaddr, payload, pinfo.visited, pinfo.number)
             local payloadtree = subtree:add(fields.body, tvb(offset))
             for element in array_iterator(dec_msg, dec_msg[0]) do
                 payloadtree:add(element)
@@ -93,7 +93,7 @@ function rlpx.dissector(tvb, pinfo, tree)
             subtree:add(fields.body, tvb(offset))
         end
     else
-        local dec_msg = rlpxBridge.handleRLPxMsg(srcaddr, dstaddr, payload)
+        local dec_msg = rlpxBridge.handleRLPxMsg(srcaddr, dstaddr, payload, pinfo.visited, pinfo.number)
         local frame_header = dec_msg[0]
         local frame_body = dec_msg[1]
         local frame_type = dec_msg[2]
@@ -104,8 +104,9 @@ function rlpx.dissector(tvb, pinfo, tree)
         -- Show the frame header information (if available) in Wireshark
         if frame_header ~= nil then
             local frame_header_tree = subtree:add(fields.frame_header, tvb(0, frame_header.headerSize))
-            frame_header_tree:add("Raw Decrypted Header:", frame_header.header)
-            frame_header_tree:add("MAC:", frame_header.mac)
+            frame_header_tree:add("Decrypted Header Data:", frame_header.header)
+            frame_header_tree:add("Header MAC:", frame_header.headerMac)
+            frame_header_tree:add("Frame Body MAC:", frame_header.frameMac)
             frame_header_tree:add("Frame Size:", frame_header.frameSize)
             frame_header_tree:add("Read Size:", frame_header.readSize)
             frame_header_tree:add("Header Data:", frame_header.headerData)
@@ -124,5 +125,8 @@ end
 -- register this dissector
 DissectorTable.get("tcp.port"):add(PORT, rlpx)
 DissectorTable.get("tcp.port"):add("30303", rlpx)
-DissectorTable.get("tcp.port"):add("30308", rlpx)
+DissectorTable.get("tcp.port"):add("30304", rlpx)
+DissectorTable.get("tcp.port"):add("30305", rlpx)
+DissectorTable.get("tcp.port"):add("30306", rlpx)
 DissectorTable.get("tcp.port"):add("30307", rlpx)
+DissectorTable.get("tcp.port"):add("30308", rlpx)
