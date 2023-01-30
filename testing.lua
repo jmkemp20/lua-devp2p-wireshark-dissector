@@ -2,8 +2,8 @@ local python = require 'python'
 local g = python.globals()
 
 -- Temporary for development
-local sys = python.import 'sys'
-sys.path.append('../pydevp2p/')
+-- local sys = python.import 'sys'
+-- sys.path.append('../pydevp2p/')
 -- End of Temporary for development
 
 local crypto_secp256k1 = python.import 'pydevp2p.crypto.secp256k1'

@@ -8,8 +8,8 @@
 local python = require 'python'
 
 -- Temporary for development
-local sys = python.import 'sys'
-sys.path.append('/home/jkemp/cs700/pydevp2p/')
+-- local sys = python.import 'sys'
+-- sys.path.append('/home/jkemp/cs700/pydevp2p/')
 -- End of Temporary for development
 
 local pydevp2p = python.import 'pydevp2p.bridge'
